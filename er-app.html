@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ER Flow — Predictive ER Intelligence Platform</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@300;400;600&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #080b10; --surface: #0d1117; --surface2: #131920; --surface3: #1a2230;
+  --border: #1e2d3d; --accent: #00c9a7; --warn: #ff9f43; --danger: #ff5252;
+  --safe: #2ecc71; --purple: #7b6ef6; --text: #dde6f0; --muted: #5a7a96; --dim: #2a3f52;
+}
+html, body { height: 100%; overflow: hidden; }
+body { background: var(--bg); color: var(--text); font-family: 'Outfit', sans-serif; display: flex; flex-direction: column; }
+
+/* ── Header ── */
+header {
+  flex-shrink: 0;
+  padding: 0 1.5rem;
+  height: 56px;
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  z-index: 200;
+}
+.logo {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.4rem; letter-spacing: -0.02em;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.logo em { font-style: italic; color: var(--accent); }
+.logo-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem; letter-spacing: 0.1em;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--warn); color: var(--warn);
+  text-transform: uppercase; margin-left: 0.5rem;
+}
+.header-meta {
+  display: flex; align-items: center; gap: 1.5rem;
+}
+.live-indicator {
+  display: flex; align-items: center; gap: 0.4rem;
+  font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;
+  color: var(--safe); letter-spacing: 0.08em;
+}
+.live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--safe);
+  animation: pulse 2s ease-in-out infinite;
+}
+.header-time {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* ── Tab bar ── */
+.tabs {
+  flex-shrink: 0;
+  display: flex;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.tab {
+  padding: 0.7rem 2rem;
+  font-size: 0.82rem; font-weight: 500;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+  user-select: none;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab:hover:not(.active) { color: var(--text); }
+.tab-icon { font-size: 0.9rem; }
+
+/* ── Main layout ── */
+.main { flex: 1; display: flex; overflow: hidden; }
+
+/* ── Dashboard tab ── */
+#tab-dashboard { display: flex; flex: 1; overflow: hidden; }
+#tab-raz { display: none; flex: 1; overflow: hidden; }
+
+/* Sidebar */
+.sidebar {
+  width: 340px; flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.sidebar-header {
+  padding: 1rem 1.25rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.sidebar-header h2 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem; color: var(--muted);
+  letter-spacing: 0.15em; text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+.system-status {
+  display: flex; gap: 0.5rem; flex-wrap: wrap;
+}
+.status-chip {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.62rem;
+  padding: 0.2rem 0.5rem; border: 1px solid var(--border);
+  color: var(--muted); letter-spacing: 0.05em;
+  display: flex; align-items: center; gap: 0.3rem;
+}
+.status-chip.ok { border-color: var(--safe); color: var(--safe); }
+.status-chip.warn { border-color: var(--warn); color: var(--warn); }
+.status-chip.danger { border-color: var(--danger); color: var(--danger); }
+.chip-dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+
+.sidebar-scroll { flex: 1; overflow-y: auto; padding: 0.75rem; }
+.sidebar-scroll::-webkit-scrollbar { width: 4px; }
+.sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 2px; }
+
+.hospital-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--safe);
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: background 0.2s, border-left-color 0.3s;
+}
+.hospital-card:hover { background: var(--surface3); }
+.hospital-card.surge { border-left-color: var(--danger); }
+.hospital-card.high { border-left-color: var(--warn); }
+.hospital-card.medium { border-left-color: #f1c40f; }
+.hosp-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.4rem; }
+.hosp-name { font-weight: 600; font-size: 0.88rem; color: var(--text); line-height: 1.3; }
+.hosp-wait {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1rem; font-weight: 600;
+  flex-shrink: 0; margin-left: 0.5rem;
+}
+.hosp-wait.safe { color: var(--safe); }
+.hosp-wait.medium { color: #f1c40f; }
+.hosp-wait.high { color: var(--warn); }
+.hosp-wait.surge { color: var(--danger); }
+.hosp-meta { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.hosp-meta-item {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.63rem;
+  color: var(--muted); display: flex; align-items: center; gap: 0.25rem;
+}
+.hosp-bar-wrap { margin-top: 0.5rem; height: 3px; background: var(--dim); border-radius: 2px; overflow: hidden; }
+.hosp-bar { height: 100%; border-radius: 2px; transition: width 1.5s ease; }
+
+/* Prediction panel */
+.prediction-panel {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  padding: 0.75rem 1.25rem;
+  background: rgba(0,201,167,0.04);
+}
+.pred-label {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.65rem;
+  color: var(--accent); letter-spacing: 0.12em; text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+.pred-item { display: flex; justify-content: space-between; align-items: center; padding: 0.3rem 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.pred-item:last-child { border-bottom: none; }
+.pred-name { font-size: 0.8rem; color: var(--muted); }
+.pred-val { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--text); }
+.pred-val.up { color: var(--danger); }
+.pred-val.down { color: var(--safe); }
+.pred-val.stable { color: var(--warn); }
+
+/* Map */
+.map-wrap { flex: 1; position: relative; }
+#map { width: 100%; height: 100%; }
+
+/* Map overlays */
+.map-legend {
+  position: absolute; bottom: 30px; right: 10px; z-index: 500;
+  background: rgba(13,17,23,0.92);
+  border: 1px solid var(--border);
+  padding: 0.75rem 1rem;
+  backdrop-filter: blur(10px);
+}
+.legend-title { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); letter-spacing: 0.1em; margin-bottom: 0.5rem; text-transform: uppercase; }
+.legend-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem; font-size: 0.75rem; color: var(--muted); }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+.map-conditions {
+  position: absolute; top: 10px; right: 10px; z-index: 500;
+  display: flex; flex-direction: column; gap: 0.4rem;
+}
+.condition-chip {
+  background: rgba(13,17,23,0.92);
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.75rem;
+  font-family: 'JetBrains Mono', monospace; font-size: 0.68rem;
+  color: var(--muted); letter-spacing: 0.05em;
+  backdrop-filter: blur(10px);
+  display: flex; align-items: center; gap: 0.4rem;
+}
+.condition-chip .val { color: var(--text); }
+
+/* ── Virtual RAZ ── */
+#tab-raz {
+  flex-direction: row;
+  background: var(--bg);
+}
+.raz-sidebar {
+  width: 340px; flex-shrink: 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+.raz-sidebar h2 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.5rem; color: var(--text); margin-bottom: 0.25rem;
+}
+.raz-sidebar .sub { font-size: 0.83rem; color: var(--muted); line-height: 1.6; margin-bottom: 1.5rem; }
+.ctas-display {
+  background: var(--surface2); border: 1px solid var(--border);
+  padding: 1rem; margin-bottom: 1rem;
+}
+.ctas-label { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 0.5rem; }
+.ctas-score {
+  font-family: 'DM Serif Display', serif; font-size: 2.5rem;
+  line-height: 1; margin-bottom: 0.25rem;
+  transition: color 0.5s;
+}
+.ctas-name { font-size: 0.85rem; color: var(--muted); }
+.ctas-bar { height: 4px; background: var(--dim); margin-top: 0.75rem; border-radius: 2px; overflow: hidden; }
+.ctas-fill { height: 100%; border-radius: 2px; transition: width 0.8s ease, background 0.5s; }
+
+.nearby-list { margin-top: 1rem; }
+.nearby-label { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 0.5rem; }
+.nearby-item {
+  background: var(--surface2); border: 1px solid var(--border);
+  padding: 0.6rem 0.75rem; margin-bottom: 0.4rem;
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 0.82rem;
+}
+.nearby-item .type { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--accent); letter-spacing: 0.08em; }
+.nearby-item .dist { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--muted); }
+
+/* Chat */
+.raz-chat {
+  flex: 1;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.chat-header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.chat-header h3 { font-size: 0.9rem; font-weight: 600; }
+.ai-badge {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.6rem;
+  padding: 0.2rem 0.5rem; border: 1px solid var(--purple);
+  color: var(--purple); letter-spacing: 0.08em;
+}
+.chat-messages {
+  flex: 1; overflow-y: auto;
+  padding: 1.25rem 1.5rem;
+  display: flex; flex-direction: column; gap: 1rem;
+}
+.chat-messages::-webkit-scrollbar { width: 4px; }
+.chat-messages::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 2px; }
+.msg { display: flex; gap: 0.75rem; max-width: 85%; }
+.msg.bot { align-self: flex-start; }
+.msg.user { align-self: flex-end; flex-direction: row-reverse; }
+.msg-avatar {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--surface3); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; flex-shrink: 0; margin-top: 2px;
+}
+.msg.bot .msg-avatar { background: rgba(0,201,167,0.1); border-color: var(--accent); color: var(--accent); }
+.msg-bubble {
+  background: var(--surface2); border: 1px solid var(--border);
+  padding: 0.7rem 0.9rem; font-size: 0.88rem; line-height: 1.6;
+  color: var(--text);
+}
+.msg.user .msg-bubble { background: rgba(0,201,167,0.08); border-color: rgba(0,201,167,0.2); }
+.msg-bubble strong { color: var(--accent); }
+.msg-bubble .ctas-tag { display: inline-block; padding: 0.1rem 0.4rem; border-radius: 2px; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: 600; margin-left: 0.25rem; }
+
+/* Symptom chips */
+.symptom-area {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  padding: 1rem 1.5rem;
+  background: var(--surface);
+}
+.symptom-label { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.6rem; }
+.symptom-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; max-height: 80px; overflow-y: auto; }
+.symptom-chip {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border);
+  font-size: 0.78rem; color: var(--muted);
+  cursor: pointer; transition: all 0.15s; user-select: none;
+}
+.symptom-chip:hover { border-color: var(--accent); color: var(--text); }
+.symptom-chip.selected { border-color: var(--accent); background: rgba(0,201,167,0.1); color: var(--accent); }
+.symptom-chip.danger-sym { border-color: rgba(255,82,82,0.3); color: #ff8a80; }
+.symptom-chip.danger-sym:hover, .symptom-chip.danger-sym.selected { border-color: var(--danger); background: rgba(255,82,82,0.1); color: var(--danger); }
+
+.chat-input-row {
+  display: flex; gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.chat-input {
+  flex: 1;
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); font-family: 'Outfit', sans-serif; font-size: 0.88rem;
+  padding: 0.6rem 0.9rem; outline: none;
+  transition: border-color 0.2s;
+}
+.chat-input:focus { border-color: var(--accent); }
+.chat-input::placeholder { color: var(--dim); }
+.send-btn {
+  padding: 0.6rem 1.25rem;
+  background: var(--accent); color: #000;
+  font-weight: 600; font-size: 0.82rem;
+  border: none; cursor: pointer;
+  transition: opacity 0.2s;
+  font-family: 'Outfit', sans-serif;
+}
+.send-btn:hover { opacity: 0.85; }
+.send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.reset-btn {
+  padding: 0.6rem 1rem;
+  background: transparent; color: var(--muted);
+  font-size: 0.82rem; border: 1px solid var(--border);
+  cursor: pointer; transition: color 0.2s, border-color 0.2s;
+  font-family: 'Outfit', sans-serif;
+}
+.reset-btn:hover { color: var(--text); border-color: var(--text); }
+
+/* Animations */
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+@keyframes fadeSlide { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.msg { animation: fadeSlide 0.3s ease; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.typing { display: flex; gap: 4px; align-items: center; padding: 0.6rem 0.9rem; }
+.typing span { width: 5px; height: 5px; border-radius: 50%; background: var(--muted); animation: typingDot 1.2s ease-in-out infinite; }
+.typing span:nth-child(2) { animation-delay: 0.2s; }
+.typing span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typingDot { 0%,60%,100% { transform: none; opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
+
+/* Leaflet popup override */
+.leaflet-popup-content-wrapper { background: var(--surface2); border: 1px solid var(--border); border-radius: 0; color: var(--text); box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+.leaflet-popup-tip { background: var(--surface2); }
+.popup-hosp-name { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.25rem; }
+.popup-wait { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; }
+.popup-meta { font-size: 0.78rem; color: var(--muted); line-height: 1.7; }
+.popup-raz-btn {
+  margin-top: 0.75rem; padding: 0.4rem 1rem;
+  background: var(--accent); color: #000;
+  font-size: 0.78rem; font-weight: 600; border: none;
+  cursor: pointer; width: 100%; font-family: 'Outfit', sans-serif;
+}
+
+@media (max-width: 900px) {
+  .sidebar, .raz-sidebar { width: 280px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    ER <em>Flow</em>
+    <span class="logo-badge">Prototype</span>
+  </div>
+  <div class="header-meta">
+    <div class="live-indicator">
+      <div class="live-dot"></div>
+      LIVE DATA SIMULATION
+    </div>
+    <div class="header-time" id="clock"></div>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('dashboard')" id="tab-btn-dashboard">
+    <span class="tab-icon">🗺</span> Surge Dashboard
+  </div>
+  <div class="tab" onclick="switchTab('raz')" id="tab-btn-raz">
+    <span class="tab-icon">🏥</span> Virtual RAZ
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- ── DASHBOARD TAB ── -->
+  <div id="tab-dashboard">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h2>System Status</h2>
+        <div class="system-status" id="system-status">
+          <span class="status-chip ok"><span class="chip-dot"></span>Weather API</span>
+          <span class="status-chip ok"><span class="chip-dot"></span>Road Data</span>
+          <span class="status-chip warn"><span class="chip-dot"></span>News Feed</span>
+          <span class="status-chip ok"><span class="chip-dot"></span>Wait Times</span>
+        </div>
+      </div>
+
+      <div class="sidebar-scroll" id="hospital-list"></div>
+
+      <div class="prediction-panel">
+        <div class="pred-label">&#x1f4c8; 2-Hour Forecast</div>
+        <div id="prediction-list"></div>
+      </div>
+    </div>
+
+    <div class="map-wrap">
+      <div id="map"></div>
+
+      <div class="map-conditions" id="conditions">
+        <div class="condition-chip">&#x1f325; Weather: <span class="val" id="cond-weather">Loading...</span></div>
+        <div class="condition-chip">&#x1f6e3; Roads: <span class="val" id="cond-roads">Loading...</span></div>
+        <div class="condition-chip">&#x1f4ca; System Load: <span class="val" id="cond-load">Loading...</span></div>
+      </div>
+
+      <div class="map-legend">
+        <div class="legend-title">Wait Time</div>
+        <div class="legend-row"><div class="legend-dot" style="background:#2ecc71"></div>&lt; 30 min — Normal</div>
+        <div class="legend-row"><div class="legend-dot" style="background:#f1c40f"></div>30–60 min — Elevated</div>
+        <div class="legend-row"><div class="legend-dot" style="background:#ff9f43"></div>1–2 hrs — High</div>
+        <div class="legend-row"><div class="legend-dot" style="background:#ff5252"></div>&gt; 2 hrs — Surge</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RAZ TAB ── -->
+  <div id="tab-raz">
+    <div class="raz-sidebar">
+      <h2>Virtual RAZ</h2>
+      <p class="sub">Rapid Assessment Zone — describe your symptoms and we'll help determine the right level of care, right now.</p>
+
+      <div class="ctas-display">
+        <div class="ctas-label">CTAS Score</div>
+        <div class="ctas-score" id="ctas-score" style="color:var(--muted);">—</div>
+        <div class="ctas-name" id="ctas-name">No symptoms entered</div>
+        <div class="ctas-bar"><div class="ctas-fill" id="ctas-fill" style="width:0%;background:var(--muted);"></div></div>
+      </div>
+
+      <div class="nearby-list" id="nearby-list" style="display:none;">
+        <div class="nearby-label">&#x1f4cd; Recommended Nearby</div>
+        <div id="nearby-items"></div>
+      </div>
+    </div>
+
+    <div class="raz-chat">
+      <div class="chat-header">
+        <h3>Virtual Triage Assistant</h3>
+        <span class="ai-badge">&#x2606; AI-ASSISTED</span>
+      </div>
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="symptom-area">
+        <div class="symptom-label">Quick Symptom Select</div>
+        <div class="symptom-chips" id="symptom-chips"></div>
+        <div class="chat-input-row">
+          <input class="chat-input" id="chat-input" type="text" placeholder="Describe your symptoms or how you feel..."/>
+          <button class="send-btn" id="send-btn" onclick="sendMessage()">Send</button>
+          <button class="reset-btn" onclick="resetRAZ()">Reset</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+
+// ════════════════════════════════════════
+//  DATA
+// ════════════════════════════════════════
+
+const HOSPITALS = [
+  { id: 1, name: "QEII Health Sciences Centre", short: "QEII", lat: 44.6479, lng: -63.5943,
+    baseWait: 95, capacity: 850, district: "Halifax Core" },
+  { id: 2, name: "Dartmouth General Hospital", short: "DGH", lat: 44.6726, lng: -63.5556,
+    baseWait: 55, capacity: 320, district: "Dartmouth" },
+  { id: 3, name: "Cobequid Community Health Centre", short: "CCHC", lat: 44.7523, lng: -63.6947,
+    baseWait: 40, capacity: 280, district: "Lower Sackville" },
+  { id: 4, name: "IWK Health Centre", short: "IWK", lat: 44.6481, lng: -63.5966,
+    baseWait: 70, capacity: 410, district: "Halifax (Pediatric)" },
+  { id: 5, name: "Hants Community Hospital", short: "HCH", lat: 45.0633, lng: -64.1314,
+    baseWait: 30, capacity: 180, district: "Windsor" },
+];
+
+const WALK_INS = [
+  { name: "Quinpool Medical Centre", type: "Walk-In", dist: "1.2 km" },
+  { name: "Dartmouth Medical Centre", type: "Walk-In", dist: "0.8 km" },
+  { name: "Shoppers Drug Mart Pharmacy", type: "Pharmacy", dist: "0.4 km" },
+  { name: "Cole Harbour Family Medical", type: "Walk-In", dist: "2.1 km" },
+  { name: "Lawtons Pharmacy", type: "Pharmacy", dist: "0.6 km" },
+  { name: "Nova Scotia Virtual Care", type: "Virtual Care", dist: "Online" },
+];
+
+const SYMPTOMS = [
+  { label: "Chest pain", ctas: 2, danger: true },
+  { label: "Difficulty breathing", ctas: 2, danger: true },
+  { label: "Unconscious/unresponsive", ctas: 1, danger: true },
+  { label: "Severe bleeding", ctas: 2, danger: true },
+  { label: "Stroke symptoms", ctas: 2, danger: true },
+  { label: "Fever (38°C+)", ctas: 3, danger: false },
+  { label: "Severe abdominal pain", ctas: 3, danger: false },
+  { label: "Vomiting", ctas: 4, danger: false },
+  { label: "Moderate pain", ctas: 3, danger: false },
+  { label: "Mild headache", ctas: 4, danger: false },
+  { label: "Sore throat", ctas: 5, danger: false },
+  { label: "Earache", ctas: 5, danger: false },
+  { label: "Minor cut/scrape", ctas: 5, danger: false },
+  { label: "Cough/cold", ctas: 5, danger: false },
+  { label: "Rash", ctas: 4, danger: false },
+  { label: "Dizziness", ctas: 3, danger: false },
+  { label: "Sprained ankle", ctas: 4, danger: false },
+  { label: "Nausea", ctas: 4, danger: false },
+];
+
+const CTAS_INFO = {
+  1: { name: "Resuscitation", color: "#ff1744", desc: "Immediate life-threatening. Call 911 now." },
+  2: { name: "Emergent", color: "#ff5252", desc: "Life-threatening. Go to ER immediately." },
+  3: { name: "Urgent", color: "#ff9f43", desc: "Potentially serious. ER within 30 minutes." },
+  4: { name: "Less Urgent", color: "#f1c40f", desc: "Could be managed at walk-in or virtual care." },
+  5: { name: "Non-Urgent", color: "#2ecc71", desc: "Appropriate for walk-in clinic or pharmacy." },
+};
+
+const CONDITIONS = [
+  ["Overcast, 6°C", "Normal", "74%"],
+  ["Light rain, 4°C", "Wet roads", "81%"],
+  ["Clear, 8°C", "Normal", "67%"],
+  ["Fog advisory, 3°C", "Reduced visibility", "78%"],
+  ["Snow flurries, -1°C", "Icy patches", "88%"],
+];
+
+// ════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════
+
+let hospitalData = HOSPITALS.map(h => ({ ...h, wait: h.baseWait, load: 0 }));
+let selectedSymptoms = [];
+let ctasScore = null;
+let chatHistory = [];
+let typingTimeout = null;
+let conditionIdx = 0;
+
+// ════════════════════════════════════════
+//  MAP
+// ════════════════════════════════════════
+
+const map = L.map('map', { zoomControl: false }).setView([44.72, -63.65], 10);
+L.control.zoom({ position: 'bottomleft' }).addTo(map);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap © CARTO',
+  maxZoom: 18,
+}).addTo(map);
+
+let markers = {};
+let heatLayer = null;
+
+function getWaitColor(mins) {
+  if (mins < 30) return '#2ecc71';
+  if (mins < 60) return '#f1c40f';
+  if (mins < 120) return '#ff9f43';
+  return '#ff5252';
+}
+
+function getLoadPct(h) {
+  return Math.min(100, Math.round((h.wait / 180) * 100));
+}
+
+function makeMarker(h) {
+  const col = getWaitColor(h.wait);
+  const size = 14 + Math.min(12, h.wait / 15);
+  const icon = L.divIcon({
+    className: '',
+    html: `<div style="
+      width:${size}px;height:${size}px;border-radius:50%;
+      background:${col};border:2px solid rgba(255,255,255,0.3);
+      box-shadow:0 0 ${Math.round(h.wait/8)}px ${col};
+      transition:all 0.5s;
+    "></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size/2, size/2],
+  });
+  return icon;
+}
+
+function buildPopup(h) {
+  const col = getWaitColor(h.wait);
+  const load = getLoadPct(h);
+  return `
+    <div style="min-width:200px;">
+      <div class="popup-hosp-name">${h.name}</div>
+      <div class="popup-wait" style="color:${col}">${h.wait} min wait</div>
+      <div class="popup-meta">
+        District: ${h.district}<br>
+        Capacity: ${h.capacity} beds<br>
+        System load: ${load}%<br>
+        Predicted (2hr): ${h.wait < 90 ? '↗ Rising' : '→ Stable'}
+      </div>
+      <button class="popup-raz-btn" onclick="switchTab('raz')">Assess my symptoms &#x2192;</button>
+    </div>`;
+}
+
+function initMarkers() {
+  hospitalData.forEach(h => {
+    const m = L.marker([h.lat, h.lng], { icon: makeMarker(h) }).addTo(map);
+    m.bindPopup(buildPopup(h));
+    // Label
+    L.tooltip({ permanent: true, direction: 'right', className: 'leaflet-tooltip', offset: [10, 0] })
+      .setContent(`<span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#5a7a96;">${h.short}</span>`)
+      .setLatLng([h.lat, h.lng])
+      .addTo(map);
+    markers[h.id] = m;
+  });
+}
+
+function updateMarkers() {
+  hospitalData.forEach(h => {
+    const m = markers[h.id];
+    if (m) {
+      m.setIcon(makeMarker(h));
+      m.setPopupContent(buildPopup(h));
+    }
+  });
+}
+
+function updateHeatmap() {
+  if (heatLayer) map.removeLayer(heatLayer);
+  // Simulate heat points around hospitals weighted by wait time
+  const pts = [];
+  hospitalData.forEach(h => {
+    const intensity = h.wait / 180;
+    for (let i = 0; i < 8; i++) {
+      const lat = h.lat + (Math.random() - 0.5) * 0.04;
+      const lng = h.lng + (Math.random() - 0.5) * 0.05;
+      pts.push([lat, lng, intensity]);
+    }
+    pts.push([h.lat, h.lng, intensity * 1.5]);
+  });
+  // Leaflet.heat not available via CDN easily, so we'll draw circles instead
+  pts.forEach(([lat, lng, int]) => {
+    if (int > 0.5) {
+      L.circle([lat, lng], {
+        radius: 600 * int,
+        color: 'transparent',
+        fillColor: getWaitColor(int * 180),
+        fillOpacity: 0.04,
+        interactive: false,
+      }).addTo(map);
+    }
+  });
+}
+
+// ════════════════════════════════════════
+//  HOSPITAL SIDEBAR
+// ════════════════════════════════════════
+
+function renderHospitalList() {
+  const el = document.getElementById('hospital-list');
+  const sorted = [...hospitalData].sort((a, b) => a.wait - b.wait);
+  el.innerHTML = sorted.map(h => {
+    const col = getWaitColor(h.wait);
+    const load = getLoadPct(h);
+    const cls = h.wait >= 120 ? 'surge' : h.wait >= 60 ? 'high' : h.wait >= 40 ? 'medium' : '';
+    const wcls = h.wait >= 120 ? 'surge' : h.wait >= 60 ? 'high' : h.wait >= 40 ? 'medium' : 'safe';
+    return `
+      <div class="hospital-card ${cls}" onclick="map.setView([${h.lat},${h.lng}],13);markers[${h.id}].openPopup()">
+        <div class="hosp-top">
+          <div class="hosp-name">${h.name}</div>
+          <div class="hosp-wait ${wcls}">${h.wait}m</div>
+        </div>
+        <div class="hosp-meta">
+          <span class="hosp-meta-item">&#x1f4cd; ${h.district}</span>
+          <span class="hosp-meta-item">&#x1f4ca; ${load}% load</span>
+        </div>
+        <div class="hosp-bar-wrap">
+          <div class="hosp-bar" style="width:${load}%;background:${col};"></div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderPredictions() {
+  const el = document.getElementById('prediction-list');
+  const preds = hospitalData.map(h => {
+    const delta = Math.round((Math.random() - 0.4) * 25);
+    const pred = Math.max(10, h.wait + delta);
+    const dir = delta > 5 ? 'up' : delta < -5 ? 'down' : 'stable';
+    const arrow = delta > 5 ? '↑' : delta < -5 ? '↓' : '→';
+    return `<div class="pred-item">
+      <span class="pred-name">${h.short}</span>
+      <span class="pred-val ${dir}">${arrow} ${pred}m</span>
+    </div>`;
+  }).join('');
+  el.innerHTML = preds;
+}
+
+// ════════════════════════════════════════
+//  LIVE SIMULATION
+// ════════════════════════════════════════
+
+function simulateWaits() {
+  hospitalData = hospitalData.map(h => {
+    const drift = (Math.random() - 0.45) * 8;
+    const newWait = Math.max(10, Math.min(200, h.wait + drift));
+    return { ...h, wait: Math.round(newWait) };
+  });
+  renderHospitalList();
+  updateMarkers();
+  renderPredictions();
+  updateConditions();
+}
+
+function updateConditions() {
+  const [weather, roads, load] = CONDITIONS[conditionIdx % CONDITIONS.length];
+  document.getElementById('cond-weather').textContent = weather;
+  document.getElementById('cond-roads').textContent = roads;
+  const totalLoad = Math.round(hospitalData.reduce((a, h) => a + getLoadPct(h), 0) / hospitalData.length);
+  document.getElementById('cond-load').textContent = totalLoad + '%';
+}
+
+// ════════════════════════════════════════
+//  CLOCK
+// ════════════════════════════════════════
+
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+// ════════════════════════════════════════
+//  TAB SWITCHING
+// ════════════════════════════════════════
+
+function switchTab(name) {
+  document.getElementById('tab-dashboard').style.display = name === 'dashboard' ? 'flex' : 'none';
+  document.getElementById('tab-raz').style.display = name === 'raz' ? 'flex' : 'none';
+  document.getElementById('tab-btn-dashboard').classList.toggle('active', name === 'dashboard');
+  document.getElementById('tab-btn-raz').classList.toggle('active', name === 'raz');
+  if (name === 'dashboard') setTimeout(() => map.invalidateSize(), 50);
+}
+
+// ════════════════════════════════════════
+//  VIRTUAL RAZ
+// ════════════════════════════════════════
+
+function renderSymptomChips() {
+  const el = document.getElementById('symptom-chips');
+  el.innerHTML = SYMPTOMS.map((s, i) =>
+    `<div class="symptom-chip ${s.danger ? 'danger-sym' : ''} ${selectedSymptoms.includes(i) ? 'selected' : ''}"
+      onclick="toggleSymptom(${i})">${s.label}</div>`
+  ).join('');
+}
+
+function toggleSymptom(idx) {
+  if (selectedSymptoms.includes(idx)) {
+    selectedSymptoms = selectedSymptoms.filter(i => i !== idx);
+  } else {
+    selectedSymptoms.push(idx);
+  }
+  renderSymptomChips();
+  updateCTAS();
+}
+
+function updateCTAS() {
+  if (selectedSymptoms.length === 0) {
+    ctasScore = null;
+    document.getElementById('ctas-score').textContent = '—';
+    document.getElementById('ctas-name').textContent = 'No symptoms entered';
+    document.getElementById('ctas-fill').style.width = '0%';
+    document.getElementById('ctas-fill').style.background = 'var(--muted)';
+    document.getElementById('ctas-score').style.color = 'var(--muted)';
+    document.getElementById('nearby-list').style.display = 'none';
+    return;
+  }
+  const scores = selectedSymptoms.map(i => SYMPTOMS[i].ctas);
+  ctasScore = Math.min(...scores); // worst (lowest = most critical)
+  const info = CTAS_INFO[ctasScore];
+  document.getElementById('ctas-score').textContent = `CTAS ${ctasScore}`;
+  document.getElementById('ctas-score').style.color = info.color;
+  document.getElementById('ctas-name').textContent = info.name + ' — ' + info.desc;
+  const fillPct = ((5 - ctasScore) / 4) * 100;
+  document.getElementById('ctas-fill').style.width = fillPct + '%';
+  document.getElementById('ctas-fill').style.background = info.color;
+
+  // Show nearby if CTAS 4-5
+  if (ctasScore >= 4) {
+    document.getElementById('nearby-list').style.display = 'block';
+    const items = WALK_INS.slice(0, 4).map(w =>
+      `<div class="nearby-item">
+        <div><div>${w.name}</div><div class="type">${w.type}</div></div>
+        <div class="dist">${w.dist}</div>
+      </div>`
+    ).join('');
+    document.getElementById('nearby-items').innerHTML = items;
+  } else {
+    document.getElementById('nearby-list').style.display = 'none';
+  }
+}
+
+function addMessage(role, content) {
+  const el = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  const avatar = role === 'bot' ? '&#x2665;' : '&#x1f464;';
+  div.innerHTML = `
+    <div class="msg-avatar">${avatar}</div>
+    <div class="msg-bubble">${content}</div>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function showTyping() {
+  const el = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = 'msg bot'; div.id = 'typing-indicator';
+  div.innerHTML = `<div class="msg-avatar">&#x2665;</div><div class="msg-bubble"><div class="typing"><span></span><span></span><span></span></div></div>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function removeTyping() {
+  const t = document.getElementById('typing-indicator');
+  if (t) t.remove();
+}
+
+function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text && selectedSymptoms.length === 0) return;
+
+  const btn = document.getElementById('send-btn');
+  btn.disabled = true;
+
+  // Build message from text + chips
+  let userMsg = text;
+  if (selectedSymptoms.length > 0) {
+    const chipLabels = selectedSymptoms.map(i => SYMPTOMS[i].label).join(', ');
+    userMsg = (text ? text + ' — ' : '') + 'Symptoms: ' + chipLabels;
+  }
+
+  addMessage('user', userMsg || 'Submitting my symptoms above.');
+  input.value = '';
+
+  showTyping();
+  const delay = 800 + Math.random() * 800;
+
+  setTimeout(() => {
+    removeTyping();
+    const response = generateResponse(text, selectedSymptoms);
+    addMessage('bot', response);
+    btn.disabled = false;
+  }, delay);
+}
+
+function generateResponse(text, symIdxs) {
+  const lc = text.toLowerCase();
+
+  // Detect CTAS 1
+  if (symIdxs.some(i => SYMPTOMS[i].ctas === 1) ||
+      /cardiac arrest|not breathing|unconscious/.test(lc)) {
+    return `<strong>&#x1f6a8; Call 911 immediately.</strong><br><br>
+      Based on your symptoms, this is a <span class="ctas-tag" style="background:#ff174430;color:#ff1744;">CTAS 1 — Resuscitation</span> level emergency.
+      Do not wait or drive to the ER. Call 911 now.`;
+  }
+
+  // CTAS 2
+  if (symIdxs.some(i => SYMPTOMS[i].ctas === 2) ||
+      /chest pain|stroke|can't breathe|severe|crushing/.test(lc)) {
+    const best = [...hospitalData].sort((a,b) => a.wait - b.wait)[0];
+    return `This looks like a <span class="ctas-tag" style="background:#ff525230;color:#ff5252;">CTAS 2 — Emergent</span> situation.<br><br>
+      You need emergency care <strong>right now</strong>. The shortest current wait in your area is 
+      <strong>${best.name}</strong> at <strong style="color:#ff9f43;">${best.wait} minutes</strong>.<br><br>
+      If symptoms worsen at any point — call 911.`;
+  }
+
+  // CTAS 3
+  if (symIdxs.some(i => SYMPTOMS[i].ctas === 3) ||
+      /fever|vomiting blood|dizz|faint|moderate pain|abdom/.test(lc)) {
+    const best = [...hospitalData].sort((a,b) => a.wait - b.wait)[0];
+    return `Based on your symptoms, I'm scoring this as <span class="ctas-tag" style="background:#ff9f4330;color:#ff9f43;">CTAS 3 — Urgent</span>.<br><br>
+      You should be seen in an ER within the next 30 minutes. The lowest-wait option right now is 
+      <strong>${best.name}</strong> — currently <strong style="color:#ff9f43;">${best.wait} min</strong>.<br><br>
+      I'm flagging your submission for clinical review. A healthcare provider will follow up shortly.`;
+  }
+
+  // CTAS 4/5 or general
+  if (symIdxs.some(i => SYMPTOMS[i].ctas >= 4) ||
+      /sore throat|cold|cough|minor|small cut|earache|rash|nausea|mild/.test(lc) ||
+      (symIdxs.length > 0 && ctasScore >= 4)) {
+    const level = ctasScore === 5 ? '5 — Non-Urgent' : '4 — Less Urgent';
+    const col = ctasScore === 5 ? '#2ecc71' : '#f1c40f';
+    return `Good news — your symptoms appear to be <span class="ctas-tag" style="background:${col}30;color:${col};">CTAS ${level}</span>.<br><br>
+      An ER visit likely isn't necessary right now. Based on your location, I'd recommend:<br><br>
+      &#x2713; <strong>Dartmouth Medical Centre</strong> (Walk-in, 0.8 km)<br>
+      &#x2713; <strong>Shoppers Drug Mart</strong> (Pharmacy, 0.4 km)<br>
+      &#x2713; <strong>Nova Scotia Virtual Care</strong> (Available online, no wait)<br><br>
+      <em>This keeps ER resources available for critical cases and gets you help faster.</em>`;
+  }
+
+  // No symptoms, just text
+  if (text) {
+    return `Thanks for reaching out. Could you tell me more about what you're experiencing? 
+      You can also use the <strong>symptom chips</strong> below to quickly select what applies, 
+      and I'll help determine the right level of care.`;
+  }
+
+  return `Please select your symptoms from the chips below, or type how you're feeling, and I'll help route you to the right care.`;
+}
+
+function resetRAZ() {
+  selectedSymptoms = [];
+  chatHistory = [];
+  document.getElementById('chat-messages').innerHTML = '';
+  document.getElementById('chat-input').value = '';
+  renderSymptomChips();
+  updateCTAS();
+  setTimeout(() => {
+    addMessage('bot', `Hello, I'm the Virtual RAZ assistant.<br><br>
+      To get started, <strong>select your symptoms</strong> from the chips below, or describe how you're feeling in your own words.<br><br>
+      I'll assess your symptoms against CTAS triage levels and help direct you to the most appropriate care — whether that's the ER, a walk-in clinic, a pharmacy, or virtual care.`);
+  }, 100);
+}
+
+// ════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Clock
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  // Map
+  initMarkers();
+  updateHeatmap();
+
+  // Sidebar
+  renderHospitalList();
+  renderPredictions();
+  updateConditions();
+
+  // Live simulation every 8 seconds
+  setInterval(() => {
+    conditionIdx++;
+    simulateWaits();
+  }, 8000);
+
+  // RAZ
+  renderSymptomChips();
+  resetRAZ();
+
+  // Enter key to send
+  document.getElementById('chat-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') sendMessage();
+  });
+});
+</script>
+</body>
+</html>
